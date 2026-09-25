@@ -1,0 +1,18 @@
+{
+  "name": "hermes-noir",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hermes Noir by Essam: a pure-black, monochrome restyle of the Hermes Agent desktop app.",
+  "type": "module",
+  "author": "Essam (https://essam.pro)",
+  "license": "MIT",
+  "scripts": {
+    "icons": "node scripts/gen-icons.mjs",
+    "check": "node scripts/check.mjs",
+    "test": "node --import ./tests/register-stubs.mjs --test tests/*.test.mjs",
+    "verify": "npm run check && npm test"
+  },
+  "devDependencies": {
+    "lucide-static": "1.48.0"
+  }
+}
