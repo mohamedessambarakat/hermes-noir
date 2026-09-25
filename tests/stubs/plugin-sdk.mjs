@@ -35,3 +35,4 @@ export const useValue = store => store.get()
 export const Popover = () => null
 export const PopoverContent = () => null
 export const PopoverTrigger = () => null
+export const Tip = () => null

@@ -1,8 +1,8 @@
 {
   "name": "hermes-noir",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Hermes Noir by Essam: a pure-black, monochrome restyle of the Hermes Agent desktop app.",
+  "description": "Hermes Noir by Essam: a near-black, monochrome restyle of the Hermes Agent desktop app.",
   "type": "module",
   "author": "Essam (https://essam.pro)",
   "license": "MIT",

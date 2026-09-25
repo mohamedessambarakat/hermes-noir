@@ -1,6 +1,6 @@
 /**
  * Hermes Noir by Essam (https://essam.pro)
- * A pure-black, monochrome restyle of the Hermes Agent desktop app.
+ * A near-black, monochrome restyle of the Hermes Agent desktop app.
  *
  * Hermes loads desktop plugins as ONE uncompiled ES module that may import only
  * '@hermes/plugin-sdk', 'react' and 'react/jsx-runtime'. So this file is organised
@@ -28,6 +28,7 @@ import {
   PopoverTrigger,
   requestTheme,
   THEMES_AREA,
+  Tip,
   useTheme,
   useValue
 } from '@hermes/plugin-sdk'
@@ -42,12 +43,14 @@ const SCOPE = `:root[data-hermes-theme="${THEME_NAME}"]`
 const LOG_PREFIX = '[hermes-noir]'
 
 const PALETTE = {
-  black: '#000000',
-  surface: '#0a0a0a',
-  elevated: '#111111',
-  hover: '#161616',
-  border: '#1f1f1f',
-  borderStrong: '#2e2e2e',
+  black: '#000000', // ink on white controls only
+  canvas: '#0b0b0b', // app background and chrome
+  sidebar: '#070707', // a step darker than the canvas
+  surface: '#111111',
+  elevated: '#151515',
+  hover: '#1b1b1b',
+  border: '#242424',
+  borderStrong: '#303030',
   text: '#ededed',
   text2: '#a1a1a1',
   text3: '#8f8f8f',
@@ -64,9 +67,9 @@ const FONT_URL = 'https://fonts.googleapis.com/css2?family=Geist:wght@400;500;60
 export const NOIR_THEME = {
   name: THEME_NAME,
   label: 'Noir · by Essam',
-  description: 'Pure black, monochrome, Geist. By Essam (essam.pro).',
+  description: 'Near-black, monochrome, Geist. By Essam (essam.pro).',
   colors: {
-    background: PALETTE.black,
+    background: PALETTE.canvas,
     foreground: PALETTE.text,
     card: PALETTE.surface,
     cardForeground: PALETTE.text,
@@ -87,7 +90,7 @@ export const NOIR_THEME = {
     composerRing: PALETTE.borderStrong,
     destructive: PALETTE.err,
     destructiveForeground: PALETTE.black,
-    sidebarBackground: PALETTE.black,
+    sidebarBackground: PALETTE.sidebar,
     sidebarBorder: PALETTE.border,
     userBubble: PALETTE.elevated,
     userBubbleBorder: PALETTE.border
@@ -119,7 +122,11 @@ export const HOOKS = [
   { id: 'conversation-font-token', required: true, test: doc => getComputedStyle(doc.documentElement).getPropertyValue('--conversation-text-font-size').trim() !== '', source: 'styles.css --conversation-text-font-size', usedBy: '15px chat text' },
   { id: 'section-label', required: true, selector: '[data-slot="sidebar"] .dither', source: 'app/shell/sidebar-label.tsx SidebarPanelLabel', usedBy: 'section label style, channel icon tint' },
   { id: 'surface-tokens', required: true, test: doc => getComputedStyle(doc.documentElement).getPropertyValue('--ui-bg-sidebar').trim() !== '', source: 'styles.css --ui-bg-sidebar / --ui-bg-chrome', usedBy: 'true black sidebar and chrome' },
+  { id: 'search-field', required: false, selector: '[data-slot="sidebar"] div:has(> svg + input)', source: 'components/ui/search-field.tsx (Tabler icon + input)', usedBy: 'visible search box' },
   { id: 'session-row', required: false, selector: '.row-hover', source: 'app/chat/sidebar/session-row.tsx', usedBy: 'row height, text size, motion' },
+  { id: 'message-actions', required: false, selector: '[data-slot="aui_msg-actions"]', source: 'components/assistant-ui/thread/assistant-message.tsx', usedBy: 'always-visible copy/branch/retry' },
+  { id: 'user-message', required: false, selector: '[data-slot="aui_user-bubble-actions"]', source: 'components/assistant-ui/thread/user-message.tsx', usedBy: 'copy button under your messages' },
+  { id: 'timeline-rail', required: false, selector: '[data-slot="thread-timeline"]', source: 'components/assistant-ui/thread/timeline-rail.tsx', usedBy: 'hidden tick rail' },
   { id: 'wordmark', required: false, selector: '.wordmark', source: 'components/chat/wordmark.tsx', usedBy: 'empty-chat title' },
   { id: 'working-row', required: false, selector: '[data-working="true"]', source: 'app/chat/sidebar/session-row.tsx', usedBy: 'working row tint' },
   { id: 'turn-activity', required: false, selector: '[data-slot="aui_turn-activity"]', source: 'components/assistant-ui/thread/status.tsx', usedBy: 'replaced by Noir status line' },
@@ -177,6 +184,22 @@ export function streamedLength(event) {
   return STREAM_EVENTS.has(event?.type) && typeof text === 'string' ? text.length : 0
 }
 
+const MINUTE = 60_000
+const HOUR = 60 * MINUTE
+const DAY = 24 * HOUR
+const SHORT_DATE = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
+
+/** Claude-style message age: "just now", "5m ago", "3h ago", "2d ago", then "Sep 25". */
+export function formatAge(thenMs, nowMs = Date.now()) {
+  const age = nowMs - thenMs
+  if (!Number.isFinite(age)) return ''
+  if (age < MINUTE) return 'just now'
+  if (age < HOUR) return `${Math.floor(age / MINUTE)}m ago`
+  if (age < DAY) return `${Math.floor(age / HOUR)}h ago`
+  if (age < 7 * DAY) return `${Math.floor(age / DAY)}d ago`
+  return SHORT_DATE.format(new Date(thenMs))
+}
+
 export function phaseForEvent(type) {
   return PHASE_BY_EVENT[type] ?? null
 }
@@ -196,6 +219,12 @@ export function missingHooks(doc, hooks = HOOKS) {
 
 export function svgToMaskUrl(svg) {
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+}
+
+/** CSS that puts `svg` before the label of a sidebar section header matched by `groupSelector`. */
+export function sectionIconRule(groupSelector, svg) {
+  const mask = svgToMaskUrl(svg)
+  return `${groupSelector} button:has(> span:first-child > .dither) > span:first-child::before{content:"";width:1rem;height:1rem;flex-shrink:0;margin-left:-.25rem;background-color:currentColor;-webkit-mask:${mask} center/.875rem no-repeat;mask:${mask} center/.875rem no-repeat}`
 }
 
 export function buildIconCss(iconSvgs, scope = SCOPE) {
@@ -223,10 +252,10 @@ ${scope}{${tokens}
 ${scope} *{scrollbar-width:thin;scrollbar-color:var(--noir-border-strong) transparent}
 ${scope} ::selection{background:rgba(237,237,237,.22)}
 
-/* Surfaces: Hermes mixes the theme seed with a neutral gray; Noir wants true black. */
-${scope}{--ui-bg-sidebar:${PALETTE.black};--ui-bg-chrome:${PALETTE.black}}
+/* Surfaces: Hermes mixes the theme seed with a neutral gray; Noir wants its exact canvas. */
+${scope}{--ui-bg-sidebar:${PALETTE.sidebar};--ui-bg-chrome:${PALETTE.canvas}}
 /* With Hermes' "glass" window effect on, the sidebar is transparent and shows the OS window material. */
-${scope} [data-slot="sidebar"]{background-color:${PALETTE.black}}
+${scope} [data-slot="sidebar"]{background-color:${PALETTE.sidebar}}
 
 /* Sidebar: larger text, hairline dividers between sections, calm motion. */
 ${scope} [data-slot="sidebar"]{font-size:.875rem}
@@ -238,6 +267,25 @@ ${scope} [data-slot="sidebar"] span:has(> .dither){text-transform:none;letter-sp
 /* Channel icons: gray until hovered, then their brand color (AvatarChip sets color inline). */
 ${scope} [data-slot="sidebar"] button:has(> span > .dither) > span[style]{filter:grayscale(1) brightness(1.5);opacity:.8;transition:filter var(--noir-dur) var(--noir-ease),opacity var(--noir-dur) var(--noir-ease)}
 ${scope} [data-slot="sidebar"] button:has(> span > .dither):hover > span[style]{filter:none;opacity:1}
+/* One flat Sessions list: hide Hermes' date captions ("Earlier this week", "Last week"), which
+   SidebarDateDivider (app/chat/sidebar/chrome.tsx) renders as a label plus a hairline span.h-px. */
+${scope} [data-slot="sidebar"] div:has(> span.h-px[aria-hidden="true"]),
+${scope} [data-slot="sidebar"] div:has(> button > span.h-px[aria-hidden="true"]){display:none}
+/* Search: Hermes draws it borderless at 30% opacity; give it a real field. */
+${scope} [data-slot="sidebar"] div:has(> div > svg + input){padding-left:0;padding-right:0}
+${scope} [data-slot="sidebar"] :has(> svg + input){opacity:1;width:100%;box-sizing:border-box;height:2rem;padding:0 .5rem;gap:.625rem;border:1px solid var(--noir-border-strong);border-radius:.375rem;background:var(--noir-surface);transition:border-color var(--noir-dur) var(--noir-ease)}
+${scope} [data-slot="sidebar"] :has(> svg + input) > svg{width:1rem;height:1rem}
+${scope} [data-slot="sidebar"] :has(> svg + input):hover{border-color:#3a3a3a}
+${scope} [data-slot="sidebar"] :has(> svg + input):focus-within{border-color:#555}
+${scope} [data-slot="sidebar"] :has(> svg + input) > input{font-size:.875rem;width:100%}
+/* Section icons, so every header shares one label column with the channel headers (which carry a logo).
+   Only headers without their own icon qualify (label span is the button's first child). Identified by
+   structure, never text: Sessions is the only section with a filter button (Codicon list-filter),
+   Pinned is the first section, Cron jobs is always rendered last (app/chat/sidebar/index.tsx). */
+${sectionIconRule(`${scope} [data-slot="sidebar-group"]:first-child:not(:has(.codicon-list-filter))`, ICON_SVGS.pin)}
+${sectionIconRule(`${scope} [data-slot="sidebar-group"]:has(.codicon-list-filter)`, ICON_SVGS['comment-discussion'])}
+${sectionIconRule(`${scope} [data-slot="sidebar-group"]:last-child:not(:has(.codicon-list-filter))`, NOIR_ICONS['cron-header'])}/* The per-job "Manage" button uses Codicon "watch" (a clock); inside cron rows show sliders instead. */
+${scope} [data-slot="sidebar"] .group\\/cron .codicon.codicon-watch::before{-webkit-mask:${svgToMaskUrl(NOIR_ICONS['cron-manage'])} center/contain no-repeat;mask:${svgToMaskUrl(NOIR_ICONS['cron-manage'])} center/contain no-repeat}
 /* Rows: taller and larger text (Hermes: min-h 1.625rem, text 0.8125rem in row-geometry.ts). */
 ${scope} [data-slot="sidebar"] .row-hover{min-height:2.125rem}
 ${scope} [data-slot="sidebar"] .row-hover .truncate{font-size:.875rem}
@@ -245,9 +293,43 @@ ${scope} .row-hover{transition:background-color var(--noir-dur) var(--noir-ease)
 ${scope} .row-hover:active{transform:scale(.985)}
 ${scope} [data-working="true"]{background-image:linear-gradient(90deg,rgba(237,237,237,.07),transparent 70%)}
 
-/* Composer: Hermes' own layout, Noir chrome only (hairline border, brighter while typing). */
-${scope} [data-slot="composer-surface"]{border-color:var(--noir-border-strong);transition:border-color var(--noir-dur) var(--noir-ease)}
+/* Composer: Hermes' own layout, Noir chrome only. Opaque fill (Hermes' --composer-fill is translucent,\n   so the transcript showed through), hairline border, brighter while typing. */
+${scope} [data-slot="composer-surface"]{--composer-fill:${PALETTE.surface};border-color:var(--noir-border-strong);transition:border-color var(--noir-dur) var(--noir-ease)}
 ${scope} [data-slot="composer-surface"]:focus-within{border-color:#555}
+
+/* Message actions (branch, copy, read aloud, retry) appear on hover, as Hermes already does
+   (thread/assistant-message.tsx, data-slot aui_msg-actions); Noir only adds a fade. */
+${scope} [data-slot="aui_msg-actions"]{transition:opacity var(--noir-dur) var(--noir-ease)}
+${scope} [data-slot="aui_msg-actions"] button{color:var(--noir-text-2)}
+${scope} [data-slot="aui_msg-actions"] button:hover{color:var(--noir-text)}
+/* No jump-to-message tick rail on the transcript's right edge (thread/timeline-rail.tsx). */
+${scope} [data-slot="thread-timeline"]{display:none}
+/* Reply actions sit on the left under the reply, aligned with its text (Hermes puts them right). */
+${scope} div:has(> [data-slot="aui_msg-actions"]){justify-content:flex-start}
+${scope} [data-slot="aui_msg-actions"]{order:-1;justify-content:flex-start;margin-left:calc(var(--message-text-indent,.75rem) - .375rem)}
+
+/* Copy row under the user's messages (injected by installUserMessageCopy). */
+.noir-user-actions{display:none}
+${scope} .noir-user-actions{display:flex;justify-content:flex-end;padding:.25rem 0 0;opacity:0;transition:opacity var(--noir-dur) var(--noir-ease)}
+${scope} ${USER_MESSAGE_ROOT}:hover .noir-user-actions,${scope} .noir-user-actions:focus-within{opacity:1}
+.noir-user-copy{display:inline-grid;place-items:center;width:1.5rem;height:1.5rem;padding:0;border:0;border-radius:var(--radius-md,.375rem);background:transparent;color:var(--noir-text-2);cursor:pointer;transition:background-color var(--noir-dur) var(--noir-ease),color var(--noir-dur) var(--noir-ease)}
+.noir-user-copy:hover{background:var(--chrome-action-hover,var(--noir-hover));color:var(--noir-text)}
+.noir-user-copy:focus-visible{outline:2px solid var(--noir-text);outline-offset:1px}
+.noir-user-copy::before{content:"";width:.875rem;height:.875rem;background-color:currentColor;-webkit-mask:${svgToMaskUrl(ICON_SVGS.copy)} center/contain no-repeat;mask:${svgToMaskUrl(ICON_SVGS.copy)} center/contain no-repeat}
+.noir-user-copy[data-copied]::before{-webkit-mask-image:${svgToMaskUrl(ICON_SVGS.check)};mask-image:${svgToMaskUrl(ICON_SVGS.check)};background-color:var(--noir-ok)}
+
+/* Read-only bubbles: no edit affordance (click is blocked by installReadOnlyBubbles). */
+${scope} ${USER_MESSAGE_TEXT} [data-context-menu-skip] > button,${scope} ${USER_MESSAGE_TEXT} [data-context-menu-skip] > button *{cursor:text}
+/* Chat roles at a glance, like Claude: your messages are right-aligned bubbles sized to their text;
+   replies stay full-width on the left. Hermes renders the bubble full-width (bubbleClassName). */
+${scope} ${USER_MESSAGE_TEXT} [data-context-menu-skip] > button{display:block;width:fit-content;max-width:min(80%,42rem);margin-left:auto;margin-right:0;padding:.625rem .875rem;text-align:left;line-height:1.5;border-radius:.875rem;background:var(--noir-elevated);border-color:var(--noir-border)}
+/* No "Restore checkpoint" button on your messages (Hermes renders it with Codicon "discard"). */
+${scope} ${USER_MESSAGE_TEXT} button:has(> .codicon.codicon-discard){display:none}
+
+/* Hermes' absolute stamps ("8:59:17.278 PM → 8:59:22.070 PM") are hidden; their time feeds the "just now" labels. */
+${scope} [data-slot="timeline-timestamp"]{display:none}
+.noir-age{display:none}
+${scope} .noir-age{display:inline;align-self:center;padding:0 .375rem;font-size:.75rem;color:var(--noir-text-3);font-variant-numeric:tabular-nums;white-space:nowrap}
 
 /* Empty-chat wordmark: Geist instead of the stencil display face, at a quieter size.
    Width is an inline style on the element, hence !important. */
@@ -263,8 +345,9 @@ ${scope} [data-slot="aui_response-loading"]:not(:has(.shimmer)){position:absolut
 .noir-status{display:flex;align-items:center;gap:.5rem;padding:.25rem .75rem;font-size:.8125rem;color:var(--noir-text-2);font-variant-numeric:tabular-nums}
 .noir-status .noir-spark{flex-shrink:0;color:var(--noir-text);animation:noir-spark 1.6s var(--noir-ease) infinite}
 .noir-status .noir-phase{background:linear-gradient(90deg,var(--noir-text-3) 0%,var(--noir-text-3) 40%,var(--noir-text) 50%,var(--noir-text-3) 60%,var(--noir-text-3) 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:noir-shimmer 2s linear infinite}
-.noir-ring{display:inline-grid;place-items:center;width:1.75rem;height:1.75rem;padding:0;border:0;border-radius:999px;background:transparent;color:var(--noir-text-2);cursor:pointer;transition:background-color var(--noir-dur) var(--noir-ease)}
-.noir-ring:hover,.noir-ring[data-state="open"]{background:var(--noir-hover)}
+.noir-ring{display:inline-grid;place-items:center;width:var(--composer-control-size,1.75rem);height:var(--composer-control-size,1.75rem);padding:0;border:0;border-radius:var(--radius-md,.375rem);background:transparent;color:var(--ui-text-tertiary,var(--noir-text-2));cursor:pointer;transition:background-color var(--noir-dur) var(--noir-ease),color var(--noir-dur) var(--noir-ease)}
+/* Same hover token as Hermes' composer controls (GHOST_ICON_BTN in app/chat/composer/control-classes.ts). */
+.noir-ring:hover,.noir-ring[data-state="open"]{background:var(--chrome-action-hover,var(--noir-hover));color:var(--noir-text)}
 .noir-ring:focus-visible{outline:2px solid var(--noir-text);outline-offset:1px}
 .noir-usage{display:grid;grid-template-columns:auto auto;gap:.25rem 1.5rem;font-size:.8125rem;min-width:14rem}
 .noir-usage dt{color:var(--noir-text-3)}
@@ -487,12 +570,17 @@ function ContextRing() {
   if (!active || !Number.isFinite(raw)) return null
 
   const percent = Math.min(100, Math.max(0, raw))
-  const label = `Context ${Math.round(percent)}% used. Show usage details`
+  const label = `Context · ${Math.round(percent)}% used`
   return jsxs(Popover, {
     children: [
-      jsx(PopoverTrigger, {
-        asChild: true,
-        children: jsx('button', { 'aria-label': label, className: 'noir-ring', title: label, type: 'button', children: jsx(RingGlyph, { percent }) })
+      // Hermes' own tooltip, same placement as the model pill's.
+      jsx(Tip, {
+        label,
+        placement: 'control',
+        children: jsx(PopoverTrigger, {
+          asChild: true,
+          children: jsx('button', { 'aria-label': `${label}. Show usage details`, className: 'noir-ring', type: 'button', children: jsx(RingGlyph, { percent }) })
+        })
       }),
       jsx(PopoverContent, {
         align: 'end',
@@ -526,6 +614,113 @@ function installEmptyState(ctx) {
   ctx.register({ id: 'empty-hint', area: CHAT_EMPTY_AREA, data: { render: () => jsx(EmptyHint, {}) } })
 }
 
+/**
+ * Copy button under the user's own messages. Hermes gives those only edit and restore, so this is
+ * the one place Noir adds DOM to Hermes' markup: a small row appended as the message root's last
+ * child. React leaves foreign trailing children alone; if Hermes re-renders the message away, the
+ * row goes with it and the observer adds it back. Hidden by CSS unless the Noir theme is active.
+ */
+const USER_MESSAGE_ROOT = '[data-slot="aui_user-message-root"]'
+const USER_MESSAGE_TEXT = '[data-slot="aui_user-bubble-actions"]'
+const COPIED_MS = 1500
+
+function addCopyRow(root) {
+  if (root.querySelector(':scope > .noir-user-actions')) return
+  const row = document.createElement('div')
+  row.className = 'noir-user-actions'
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'noir-user-copy'
+  button.setAttribute('aria-label', 'Copy message')
+  button.title = 'Copy'
+  button.addEventListener('click', async event => {
+    event.stopPropagation()
+    const text = root.querySelector(USER_MESSAGE_TEXT)?.innerText?.trim()
+    if (!text) {
+      console.error(LOG_PREFIX, 'copy: message text not found; Hermes markup may have changed')
+      host.notify({ kind: 'error', title: 'Hermes Noir', message: 'Could not find the message text to copy.' })
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(text)
+      button.dataset.copied = 'true'
+      setTimeout(() => delete button.dataset.copied, COPIED_MS)
+    } catch (error) {
+      console.error(LOG_PREFIX, 'copy failed', error)
+      host.notify({ kind: 'error', title: 'Hermes Noir', message: 'Copying to the clipboard failed.' })
+    }
+  })
+  row.appendChild(button)
+  root.appendChild(row)
+}
+
+/**
+ * Relative time ("just now") beside a message's actions. The time comes from Hermes' own message
+ * timestamp (<time dateTime> in thread/timeline-timestamp.tsx, rendered when display.timestamps is
+ * on); Noir hides Hermes' absolute stamp and shows the age instead. No stamp, no label.
+ */
+const ASSISTANT_MESSAGE_ROOT = '[data-slot="aui_assistant-message-root"]'
+const MESSAGE_TIME = '[data-slot="timeline-timestamp"] time[datetime]'
+
+function upsertAge(container, root) {
+  const iso = root.querySelector(MESSAGE_TIME)?.getAttribute('datetime')
+  if (!container || !iso) return
+  let label = container.querySelector(':scope > .noir-age')
+  if (!label) {
+    label = document.createElement('span')
+    label.className = 'noir-age'
+    // Replies: after the action buttons. Your messages: before the copy icon (row is right-aligned).
+    if (container.classList.contains('noir-user-actions')) container.prepend(label)
+    else container.appendChild(label)
+  }
+  if (label.dataset.time !== iso) {
+    label.dataset.time = iso
+    label.title = new Date(iso).toLocaleString()
+  }
+  const text = formatAge(Date.parse(iso))
+  if (label.textContent !== text) label.textContent = text
+}
+
+function installUserMessageCopy(ctx) {
+  let scheduled = false
+  const sweep = () => {
+    scheduled = false
+    document.querySelectorAll(USER_MESSAGE_ROOT).forEach(root => {
+      addCopyRow(root)
+      upsertAge(root.querySelector(':scope > .noir-user-actions'), root)
+    })
+    document.querySelectorAll(ASSISTANT_MESSAGE_ROOT).forEach(root => upsertAge(root.querySelector('[data-slot="aui_msg-actions"]'), root))
+  }
+  ctx.setInterval(sweep, 30_000)
+  const observer = new MutationObserver(() => {
+    if (scheduled) return
+    scheduled = true
+    requestAnimationFrame(sweep)
+  })
+  observer.observe(document.body, { childList: true, subtree: true })
+  sweep()
+  ctx.onDispose(() => {
+    observer.disconnect()
+    document.querySelectorAll('.noir-user-actions').forEach(node => node.remove())
+  })
+}
+/**
+ * Your messages are read-only, like Claude's: clicking the bubble no longer opens Hermes' edit
+ * composer. The bubble is a <button> wrapped in ActionBarPrimitive.Edit (thread/user-message.tsx);
+ * React handles its events at the app root, so a document-level capture listener runs first and
+ * stops them there. Default actions (text selection, focus) are untouched.
+ */
+const USER_BUBBLE = `${USER_MESSAGE_TEXT} [data-context-menu-skip] > button`
+
+function installReadOnlyBubbles(ctx) {
+  const block = event => {
+    if (!isNoirActive() || !(event.target instanceof Element)) return
+    const bubble = event.target.closest(USER_BUBBLE)
+    // Controls inside the bubble area (stop, reactions) keep working.
+    if (bubble && event.target.closest('button') === bubble) event.stopPropagation()
+  }
+  for (const type of ['pointerdown', 'click']) ctx.addEventListener(document, type, block, true)
+}
 // Order matters only for readability; each feature is independent and fails alone.
 export const FEATURES = [
   { id: 'theme', install: installTheme },
@@ -534,6 +729,8 @@ export const FEATURES = [
   { id: 'status-line', install: installStatusLine },
   { id: 'context-ring', install: installContextRing },
   { id: 'empty-state', install: installEmptyState },
+  { id: 'user-message-copy', install: installUserMessageCopy },
+  { id: 'read-only-bubbles', install: installReadOnlyBubbles },
   { id: 'self-check', install: installSelfCheck }
 ]
 
@@ -622,6 +819,11 @@ const ICON_SVGS = {
   "watch": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"black\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 6v6l4 2\"/></svg>",
   "zap": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"black\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z\"/></svg>"
 }
+// Icons Noir places itself, keyed by purpose.
+const NOIR_ICONS = {
+  "cron-header": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"black\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M16 14v2.2l1.6 1\"/><path d=\"M16 2v3\"/><path d=\"M21 7.338V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h2.338\"/><path d=\"M3 9h5.859\"/><path d=\"M8 2v3\"/><circle cx=\"16\" cy=\"16\" r=\"6\"/></svg>",
+  "cron-manage": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"black\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 5H3\"/><path d=\"M12 19H3\"/><path d=\"M14 3v4\"/><path d=\"M16 17v4\"/><path d=\"M21 12h-9\"/><path d=\"M21 19h-5\"/><path d=\"M21 5h-7\"/><path d=\"M8 10v4\"/><path d=\"M8 12H3\"/></svg>"
+}
 // </GENERATED:icons>
 
 // ─── 7. PLUGIN ──────────────────────────────────────────────────────────────
@@ -629,7 +831,7 @@ const ICON_SVGS = {
 export default {
   id: PLUGIN_ID,
   name: 'Hermes Noir',
-  description: 'Pure-black, monochrome restyle with Geist and Lucide icons. By Essam (essam.pro).',
+  description: 'Near-black, monochrome restyle with Geist and Lucide icons. By Essam (essam.pro).',
   register(ctx) {
     for (const feature of FEATURES) {
       try {

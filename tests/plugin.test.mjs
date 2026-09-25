@@ -4,6 +4,7 @@ import { afterEach, describe, it } from 'node:test'
 import plugin, {
   buildStylesheet,
   FEATURES,
+  formatAge,
   formatElapsed,
   formatTokens,
   HOOKS,
@@ -24,6 +25,13 @@ const REQUIRED_COLOR_KEYS = [
   'popoverForeground', 'primary', 'primaryForeground', 'secondary', 'secondaryForeground', 'accent',
   'accentForeground', 'border', 'input', 'ring', 'destructive', 'destructiveForeground'
 ]
+
+// Relative luminance (WCAG) of a #rrggbb color.
+function luminance(hex) {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
 
 describe('status line formatting', () => {
   it('formats elapsed time like Claude Code', () => {
@@ -69,6 +77,20 @@ describe('status line formatting', () => {
   })
 })
 
+describe('message age', () => {
+  const now = Date.parse('2026-09-25T20:00:00Z')
+  it('reads like Claude: just now, minutes, hours, days, then a date', () => {
+    assert.equal(formatAge(now - 20_000, now), 'just now')
+    assert.equal(formatAge(now - 5 * 60_000, now), '5m ago')
+    assert.equal(formatAge(now - 3 * 3_600_000, now), '3h ago')
+    assert.equal(formatAge(now - 2 * 86_400_000, now), '2d ago')
+    assert.match(formatAge(now - 30 * 86_400_000, now), /\d/)
+  })
+  it('never shows garbage for a missing time', () => {
+    assert.equal(formatAge(Number.NaN, now), '')
+  })
+})
+
 describe('context popover', () => {
   it('shows used / max and a placeholder for anything Hermes did not report', () => {
     const rows = Object.fromEntries(usageRows({ context_used: 76_000, context_max: 200_000, input: 1200, cost_usd: 0.0421 }))
@@ -90,9 +112,16 @@ describe('theme', () => {
     }
   })
 
-  it('is dark-only with a pure black canvas', () => {
+  it('is dark-only with a near-black canvas', () => {
     assert.equal(NOIR_THEME.darkColors, undefined)
-    assert.equal(NOIR_THEME.colors.background, '#000000')
+    assert.ok(luminance(NOIR_THEME.colors.background) < 0.02)
+  })
+
+  it('layers surfaces: sidebar below the canvas, cards and popovers above it', () => {
+    const { background, sidebarBackground, card, popover } = NOIR_THEME.colors
+    assert.ok(luminance(sidebarBackground) < luminance(background))
+    assert.ok(luminance(card) > luminance(background))
+    assert.ok(luminance(popover) > luminance(background))
   })
 })
 
@@ -102,7 +131,8 @@ describe('stylesheet', () => {
 
   it('never touches Hermes elements outside the Noir theme', () => {
     const hermesHooks = /data-slot|\.codicon|\.row-hover|data-working/
-    const selectorLines = css.split('\n').filter(line => hermesHooks.test(line.split('{')[0]))
+    const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const selectorLines = withoutComments.split('\n').filter(line => hermesHooks.test(line.split('{')[0]))
     assert.ok(selectorLines.length > 0)
     for (const line of selectorLines) assert.ok(line.includes(scope), `unscoped rule: ${line.slice(0, 80)}`)
   })

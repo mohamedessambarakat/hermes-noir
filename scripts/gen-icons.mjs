@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
-import { CODICON_TO_LUCIDE } from './icon-map.mjs'
+import { CODICON_TO_LUCIDE, NOIR_ICONS } from './icon-map.mjs'
 
 const require = createRequire(import.meta.url)
 const PLUGIN_FILE = fileURLToPath(new URL('../desktop/plugin.js', import.meta.url))
@@ -25,10 +25,11 @@ function toSvg(lucideName) {
 }
 
 export function buildIconBlock() {
-  const entries = Object.entries(CODICON_TO_LUCIDE)
+  const lines = map => Object.entries(map)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([codicon, lucide]) => `  ${JSON.stringify(codicon)}: ${JSON.stringify(toSvg(lucide))}`)
-  return `${START}\n// Lucide icons (ISC license, https://lucide.dev), keyed by the Codicon they replace.\nconst ICON_SVGS = {\n${entries.join(',\n')}\n}\n${END}`
+    .map(([key, lucide]) => `  ${JSON.stringify(key)}: ${JSON.stringify(toSvg(lucide))}`)
+    .join(',\n')
+  return `${START}\n// Lucide icons (ISC license, https://lucide.dev), keyed by the Codicon they replace.\nconst ICON_SVGS = {\n${lines(CODICON_TO_LUCIDE)}\n}\n// Icons Noir places itself, keyed by purpose.\nconst NOIR_ICONS = {\n${lines(NOIR_ICONS)}\n}\n${END}`
 }
 
 export function replaceIconBlock(source, block) {

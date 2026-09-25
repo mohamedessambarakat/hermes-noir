@@ -1,3 +1,9 @@
+// Icons Noir places itself (not Codicon swaps), keyed by purpose. Emitted as NOIR_ICONS.
+export const NOIR_ICONS = {
+  'cron-header': 'calendar-clock',
+  'cron-manage': 'sliders-horizontal'
+}
+
 // Hermes renders icons as Codicons (`<i class="codicon codicon-<name>">`).
 // Noir swaps each mapped Codicon for the Lucide icon on the right.
 // Unmapped Codicons keep Hermes' original glyph, so a missing entry degrades, never breaks.

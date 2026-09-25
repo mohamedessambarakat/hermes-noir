@@ -1,8 +1,8 @@
 # Hermes plugin manifest. The package's real payload is desktop/plugin.js; Hermes
 # detects the desktop half by that path, there is no "desktop" kind.
 name: hermes-noir
-version: 0.1.0
-description: "Hermes Noir by Essam: a pure-black, monochrome restyle of the Hermes desktop app (Geist, Lucide icons, live status line)."
+version: 0.2.0
+description: "Hermes Noir by Essam: a near-black, monochrome restyle of the Hermes desktop app (Geist, Lucide icons, live status line)."
 author: "Essam (https://essam.pro)"
 homepage: "https://essam.pro"
 license: MIT
