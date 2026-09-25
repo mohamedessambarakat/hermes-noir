@@ -4,6 +4,8 @@
 
 Noir turns Hermes into a quiet, Vercel-style workspace: a near-black `#0b0b0b` canvas with a darker sidebar, white and grays only (color is kept for success, warning and error), Geist type, rounded Lucide icons, Claude-style chat bubbles and a live status line while the agent works.
 
+![Hermes Noir: the Hermes desktop app with a near-black canvas, a darker sidebar with icons on every section, a bordered search box, and the Geist wordmark on the new-chat screen](docs/screenshots/home.png)
+
 It's a regular Hermes plugin. It never touches Hermes' own files, so `hermes update` keeps working and you can switch back to any other theme at any time.
 
 ## Install
